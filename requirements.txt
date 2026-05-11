@@ -1,5 +1,6 @@
 numpy
 pandas
+scikit-learn
 py-irt
 pyrelimri
 pyro-ppl
