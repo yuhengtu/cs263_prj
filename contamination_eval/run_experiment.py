@@ -29,6 +29,59 @@ CSV_COLUMNS = [
 ]
 
 
+def _fmt(value: object) -> str:
+    if isinstance(value, float):
+        if value != value:
+            return "nan"
+        return f"{value:.3f}"
+    return str(value)
+
+
+def _print_data_summary(eval_items: list[dict], corpus_docs: list[list[int]], models: list[dict]) -> None:
+    contaminated = [item for item in eval_items if item["contaminated"]]
+    replica_total = sum(int(item["replica_count"]) for item in contaminated)
+
+    print("Synthetic contamination eval")
+    print("Eval items:", len(eval_items))
+    print("Corpus docs:", len(corpus_docs))
+    print("Models:", len(models))
+    print("Contaminated items:", len(contaminated))
+    print("Leaked replicas:", replica_total)
+
+
+def _print_method_row(row: dict) -> None:
+    print(
+        "auc:",
+        _fmt(row["auc"]),
+        "accuracy:",
+        _fmt(row["accuracy"]),
+        "precision:",
+        _fmt(row["precision"]),
+        "recall:",
+        _fmt(row["recall"]),
+        "f1:",
+        _fmt(row["f1"]),
+    )
+
+
+def _print_model_rows(rows: list[dict], method: str) -> None:
+    print(f"\n{method}")
+    print("ability contam_degree auc accuracy precision recall f1 gap")
+    for row in rows:
+        if row["method"] != method:
+            continue
+        print(
+            _fmt(row["ability"]),
+            _fmt(row["contam_degree"]),
+            _fmt(row["auc"]),
+            _fmt(row["accuracy"]),
+            _fmt(row["precision"]),
+            _fmt(row["recall"]),
+            _fmt(row["f1"]),
+            _fmt(row["extra_3_value"]),
+        )
+
+
 def main() -> None:
     output_dir = Path(__file__).resolve().parent / "outputs"
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -42,6 +95,12 @@ def main() -> None:
     for model_idx, model in enumerate(models):
         rows.append(run_ts_guessing(model, eval_items, memorized, seed=SEED + 100 + model_idx))
         rows.append(run_cdd(model, eval_items, memorized, seed=SEED + 200 + model_idx))
+
+    _print_data_summary(eval_items, corpus_docs, models)
+    print("\nretrieval")
+    _print_method_row(rows[0])
+    _print_model_rows(rows, "ts_guessing")
+    _print_model_rows(rows, "cdd")
 
     output_path = output_dir / "results_summary.csv"
     with output_path.open("w", newline="") as csv_file:
