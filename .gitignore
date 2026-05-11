@@ -1,2 +1,4 @@
 __pycache__/
 .conda_envs/
+.DS_Store
+*.csv
