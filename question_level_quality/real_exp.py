@@ -6,13 +6,14 @@ import numpy as np
 import pandas as pd
 import torch
 import torch.nn.functional as F
+from huggingface_hub import hf_hub_download
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent
-DEFAULT_PROB_MATRIX = (
-    PROJECT_ROOT.parent / "irsl" / "clean_pretrain_downstream" / "data" / "3_prob_matrix.parquet"
-)
 DEFAULT_RESULTS_DIR = PROJECT_ROOT / "results"
+DEFAULT_DATA_DIR = PROJECT_ROOT / "data"
+DEFAULT_HF_REPO = "yuhengtu/irsl_datadecide_data"
+DEFAULT_HF_FILENAME = "3_prob_matrix.parquet"
 BENCH_CHOICES = (
     "all",
     "arc_challenge",
@@ -273,6 +274,26 @@ def selected_methods(method: str) -> tuple[str, ...]:
     return METHOD_CHOICES[1:] if method == "all" else (method,)
 
 
+def resolve_prob_matrix(
+    prob_matrix: Path | None,
+    hf_repo: str,
+    hf_filename: str,
+    hf_local_dir: Path,
+) -> Path:
+    if prob_matrix is not None:
+        return prob_matrix
+
+    hf_local_dir.mkdir(parents=True, exist_ok=True)
+    return Path(
+        hf_hub_download(
+            repo_id=hf_repo,
+            filename=hf_filename,
+            repo_type="dataset",
+            local_dir=hf_local_dir,
+        )
+    )
+
+
 def auto_threshold(scores: pd.Series, bottom_frac: float) -> float:
     valid_scores = scores.dropna()
     if valid_scores.empty:
@@ -437,7 +458,10 @@ def run_benchmark(
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--prob-matrix", type=Path, default=DEFAULT_PROB_MATRIX)
+    parser.add_argument("--prob-matrix", type=Path, default=None)
+    parser.add_argument("--hf-repo", type=str, default=DEFAULT_HF_REPO)
+    parser.add_argument("--hf-filename", type=str, default=DEFAULT_HF_FILENAME)
+    parser.add_argument("--hf-local-dir", type=Path, default=DEFAULT_DATA_DIR)
     parser.add_argument("--results-dir", type=Path, default=DEFAULT_RESULTS_DIR)
     parser.add_argument("--bench", type=str, default="all", choices=BENCH_CHOICES)
     parser.add_argument("--method", type=str, default="all", choices=METHOD_CHOICES)
@@ -454,7 +478,13 @@ def main() -> None:
     for stale_plot in args.results_dir.glob("*.png"):
         stale_plot.unlink()
 
-    prob_df = pd.read_parquet(args.prob_matrix)
+    prob_matrix = resolve_prob_matrix(
+        args.prob_matrix,
+        args.hf_repo,
+        args.hf_filename,
+        args.hf_local_dir,
+    )
+    prob_df = pd.read_parquet(prob_matrix)
     benches = BENCH_CHOICES[1:] if args.bench == "all" else (args.bench,)
     methods = selected_methods(args.method)
     for bench in benches:
